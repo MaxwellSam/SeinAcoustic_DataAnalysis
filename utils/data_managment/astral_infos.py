@@ -1,96 +1,80 @@
+from astral import LocationInfo, Observer, sun, moon, SunDirection
 import pandas as pd
-import numpy as np
 import datetime
-import pytz
-from astral import Observer, sun, moon, SunDirection
+from dateutil import tz
+import numpy as np
 
-
-def compute_astral_infos (df:pd.DataFrame, lat:float, lon:float, elevation:float=0, icol_date:int=0, dtformat:str="%Y-%m-%d %H:%M:%S", tzinfo=None):
-    obs = Observer(latitude=lat, longitude=lon, elevation=elevation)
-    # print(df)
-    dates = pd.Series(df.iloc[:, icol_date].values)
+def get_astral_infos (dates:np.ndarray, lat:float=48.866, long:float=2.333, elev:float=35,
+                      dtAroundTwilightZone:float=5400.0, tzinfo=tz.gettz("Europe/Paris"), 
+                      dtformat:str="%Y-%m-%d %H:%M:%S"):
+    obs = Observer(latitude=lat, longitude=long, elevation=elev)
     if type(dates[0]) == str:
         dates = pd.to_datetime(dates, format=dtformat)
-    data = find_sunCycle_type(obs=obs, dates=dates, tzinfo=tzinfo)
-    data.update(compute_moon_infos(obs=obs, dates=dates))
-    for k, v in data.items():
-        df[k]=v
+        dates = dates.dt.tz_localize(tzinfo)
+    sun_infos = get_sun_infos(obs=obs, dates=dates, tzinfo=tzinfo)
+    sun_infos = measure_distToTwilight(sun_infos)
+    sun_infos = find_suncycle_type(sun_infos, dtAroundTwilightZone=dtAroundTwilightZone)
+    moon_infos = get_moon_infos(obs=obs, dates=dates)
+    astral_infos = sun_infos.merge(moon_infos, on="date")
+    return astral_infos
+
+def get_sun_infos (obs, dates:np.ndarray, tzinfo=tz.gettz("Europe/Paris")):
+    sun_functs = {
+        "sunset":sun.sunset, 
+        "dusk":sun.dusk, 
+        "sunrise":sun.sunrise,
+        "dawn":sun.dawn,
+        "noon":sun.noon,
+        "midnight":sun.midnight
+    }
+    df, sun_infos = pd.DataFrame(), pd.DataFrame()
+    df["date"] = dates
+    df["day"] = df.date.dt.floor("d")
+    sun_infos["day"] = df.day.unique()
+    for k,func in sun_functs.items():
+        sun_infos[k] = sun_infos.day.apply(get_time(obs, func, tzinfo=tzinfo))
+    df = df.merge(sun_infos, on="day")
+    df = df.drop("day", axis=1)
     return df
 
-def find_sunCycle_type (obs, dates, tzinfo=None, dtArountDuskDawn:datetime.timedelta=datetime.timedelta(hours=1, minutes=30), dtformat:str="%Y-%m-%d %H:%M:%S"):
-    data = {}
-    days = pd.to_datetime(np.unique(dates.dt.strftime("%Y-%m-%d")), format="%Y-%m-%d")
-    df_sunInfo_days = pd.DataFrame(sunInfos_byDays(obs=obs, days=days, tzinfo=tzinfo, dtformat=dtformat))
-    for c in df_sunInfo_days.columns:
-        df_sunInfo_days[c] = pd.to_datetime(df_sunInfo_days[c])
-        if c in ["dusk", "dawn"]:
-            df_sunInfo_days[f"start_{c}"] = df_sunInfo_days[c] - dtArountDuskDawn
-            df_sunInfo_days[f"stop_{c}"] = df_sunInfo_days[c] + dtArountDuskDawn
-    return data
+def find_suncycle_type (sun_infos:pd.DataFrame, dtAroundTwilightZone:float=5400.0):
+    """
+    """
+    dist_tw_types = [dtw for dtw in sun_infos.columns if  dtw.startswith("dist_tw_")]
+    for dtw in dist_tw_types:
+        tw = dtw.replace("dist_tw_", "")
+        sun_infos.loc[abs(sun_infos[dtw]) <= dtAroundTwilightZone, "suncycle"] = tw
+    maskDaylight = sun_infos["suncycle"].isna() # condition 1 => outside twilight zones
+    maskDaylight = maskDaylight&(sun_infos["dist_tw_rising"] > 0) # condition 2 => after twilight rising
+    maskDaylight = maskDaylight&(sun_infos["dist_tw_setting"] < 0) # condition 3 => before twilight setting
+    sun_infos.loc[maskDaylight, "suncycle"] = "daylight"
+    sun_infos.loc[sun_infos["suncycle"].isna(), "suncycle"] = "night"
+    return sun_infos
 
-def sunCycle_byDays (obs:Observer, days, tzinfo=None, dtArountDuskDawn:datetime.timedelta=datetime.timedelta(hours=1, minutes=30)):
-    data = {}
-    df_sunInfo_days = pd.DataFrame(sunInfos_byDays(obs=obs, days=days, tzinfo=tzinfo, dtformat=dtformat))
-    for c in df_sunInfo_days.columns:
-        df_sunInfo_days[c] = pd.to_datetime(df_sunInfo_days[c])
-        if c in ["dusk", "dawn"]:
-            df_sunInfo_days[f"start_{c}"] = df_sunInfo_days[c] - dtArountDuskDawn
-            df_sunInfo_days[f"stop_{c}"] = df_sunInfo_days[c] + dtArountDuskDawn
-    # data["twilight_rising"] = days.apply(get_time(obs, funct=sun.twilight, tzinfo=tzinfo, direction=SunDirection.RISING))
-    # data["twilight_setting"] = days.apply(get_time(obs, funct=sun.twilight, tzinfo=tzinfo, direction=SunDirection.SETTING)) 
-    # data["daylight"] = days.apply(get_time(obs, funct=sun.daylight, tzinfo=tzinfo))
-    # data["night"] = days.apply(get_time(obs, funct=sun.night, tzinfo=tzinfo))
-    return data
+def measure_distToTwilight (sun_infos:pd.DataFrame, dropMid:bool=True):
+    sunrise, dawn = [sun_infos[col] for col in ["sunrise", "dawn"]]
+    sunset, dusk = [sun_infos[col] for col in ["sunset", "dusk"]]
+    sun_infos["mid_tw_rising"] = dawn + (sunrise - dawn)/2
+    sun_infos["mid_tw_setting"] = sunset + (dusk - sunset)/2
+    mid_tw_dates = [c for c in sun_infos.columns if "mid_tw" in c]
+    for mid_tw in mid_tw_dates:
+        dist_tw = mid_tw.replace("mid_", "dist_")
+        sun_infos[dist_tw] = sun_infos.date - sun_infos[mid_tw]
+        sun_infos[dist_tw] = sun_infos[dist_tw].dt.total_seconds()
+    if dropMid:
+        sun_infos=sun_infos.drop(["mid_tw_rising", "mid_tw_setting"], axis=1)
+    return sun_infos
 
-def sunInfos_byDays (obs:Observer, days, tzinfo=None, dtformat:str="%Y-%m-%d %H:%M:%S"):
-    data = {}
-    sun_functs = {"sunset":sun.sunset, "sunrise":sun.sunrise, 
-                  "dusk":sun.dusk, "dawn":sun.dawn}
-    for k, funct in sun_functs.items():
-        data[k] = days.apply(get_time(obs, funct=funct, tzinfo=tzinfo, dtformat=dtformat))
-    return data
 
-def compute_sun_infos(obs, dates:pd.Series):
-    data = {}
-    sun_functs = {"sunset":sun.sunset, "sunrise":sun.sunrise, 
-                  "dusk":sun.dusk, "dawn":sun.dawn, "noon":sun.noon}
-    # data["sunset"] = dates.apply(get_dt(obs, funct=sun.sunset))
-    # data["sunrise"] = dates.apply(get_dt(obs, funct=sun.sunrise))
-    # data["dusk"] = dates.apply(get_dt(obs, funct=sun.dusk))
-    # data["dawn"] = dates.apply(get_dt(obs, funct=sun.dawn))
-    # data["dist_noon"] = dates.apply(get_dt(obs, funct=sun.noon))
-    for k, funct in sun_functs.items():
-        data[k] = dates.apply(get_time(obs, funct=funct))
-        # data[f"dist_{k}"] = abs(dates-data[k])
-    data["isNight"] = dates.apply(is_night(obs))
-    return data
-
-def compute_moon_infos (obs:Observer, dates:pd.Series):
-    data = {}
-    data["moon_phase"] = dates.apply(moon.phase)
-    # data["dist_moonset"] = dates.apply(get_dt(obs, funct=moon.moonset))
-    # data["dist_moonrise"] = dates.apply(get_dt(obs, funct=moon.moonrise))
-    return data
-
-def is_night (obs):
-    def inner(date):
-        date = date.replace(tzinfo=pytz.UTC)
-        night_start, night_stop = sun.night(observer=obs, date=date)
-        return night_start < date < night_stop
-    return inner
-    
-def get_dt (obs, funct:callable, timeUnit:str="hour"):
-    def inner(date):
-        date = date.replace(tzinfo=pytz.UTC)
-        output_date = funct(obs, date)
-        deltatime = date - output_date
-        if timeUnit=="minut":
-            return abs(deltatime.minut)
-        elif timeUnit=="hour":
-            return abs(deltatime.hour)
-        else:
-            return deltatime
-    return inner
+def get_moon_infos (obs, dates:np.ndarray):
+    df, moon_infos = pd.DataFrame(), pd.DataFrame()
+    df["date"] = dates
+    df["day"] = df.date.dt.floor("d")
+    moon_infos["day"] = df.day.unique()
+    moon_infos["moon_phase"] = moon_infos.day.apply(moon.phase)
+    df = df.merge(moon_infos, on="day")
+    df = df.drop("day", axis=1)
+    return df
 
 def get_time (obs, funct:callable, dtformat=None, **kargs):
     def inner(date):

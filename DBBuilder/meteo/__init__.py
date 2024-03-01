@@ -1,0 +1,1 @@
+from DBBuilder.meteo.openmeteo import OpenMeteo

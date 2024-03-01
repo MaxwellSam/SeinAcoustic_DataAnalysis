@@ -4,7 +4,7 @@ import datetime
 from dateutil import tz
 import numpy as np
 
-def get_sunCycle (dates:np.ndarray, lat:float=48.866, long:float=2.333, elev:float=35, dtAroundTwilightZone:datetime.timedelta=datetime.timedelta(hours=1, minutes=30), 
+def get_sunCycle (dates:np.ndarray, lat:float=48.866, long:float=2.333, elev:float=35, timeAroundTW:datetime.timedelta=datetime.timedelta(hours=1, minutes=30), 
                   twilightZones=["dusk", "dawn"], tzinfo=tz.gettz("Europe/Paris"), dtformat:str="%Y-%m-%d %H:%M:%S"):
     """
     Get suncycle type for given dates
@@ -26,8 +26,8 @@ def get_sunCycle (dates:np.ndarray, lat:float=48.866, long:float=2.333, elev:flo
         cycle_infos = pd.to_datetime(df_suncycles.iloc[i], format=dtformat)
         for tw in twilightZones:
             tw_time = cycle_infos[tw]
-            cycle_infos[f"{tw}_start"] = tw_time - dtAroundTwilightZone
-            cycle_infos[f"{tw}_stop"] = tw_time + dtAroundTwilightZone 
+            cycle_infos[f"{tw}_start"] = tw_time - timeAroundTW
+            cycle_infos[f"{tw}_stop"] = tw_time + timeAroundTW 
         for cz in cyclezones:
             cz_start, cz_stop = [cycle_infos[f"{cz}_{k}"] for k in ["start", "stop"]]
             mask_cz = (cz_start<=dates)&(dates<=cz_stop)

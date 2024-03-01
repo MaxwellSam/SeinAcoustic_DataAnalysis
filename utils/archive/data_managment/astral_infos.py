@@ -4,6 +4,29 @@ import datetime
 from dateutil import tz
 import numpy as np
 
+def add_astral_infos (df:pd.DataFrame, lat:float=48.866, long:float=2.333, elev:float=35,
+                   dtAroundTwilightZone:float=5400.0,
+                   tzinfo=tz.gettz("Europe/Paris"), dtformat:str="%Y-%m-%d %H:%M:%S", col_date:str="date"):
+    """
+    """
+    # df = df.copy()
+    dates = df["date"]
+    # if type(dates) == str:
+    #     dates = pd.to_datetime(dates, format=dtformat)
+    if type(dates[0]) == str:
+        dates = pd.to_datetime(dates, format=dtformat)
+    if dates[0].tzinfo == None:
+        dates = dates.dt.tz_localize(tzinfo)
+    df[col_date] = dates
+    # get astral informations
+    astral_infos = get_astral_infos(dates=dates, lat=lat, long=long, elev=elev, 
+                                    dtAroundTwilightZone=dtAroundTwilightZone, 
+                                    tzinfo=tzinfo, dtformat=dtformat)
+    if col_date != "date":
+        astral_infos = astral_infos.rename(columns={"date", col_date})
+    df = df.merge(astral_infos, on=col_date)
+    return df
+
 def get_astral_infos (dates:np.ndarray, lat:float=48.866, long:float=2.333, elev:float=35,
                       dtAroundTwilightZone:float=5400.0, tzinfo=tz.gettz("Europe/Paris"), 
                       dtformat:str="%Y-%m-%d %H:%M:%S"):
@@ -29,7 +52,7 @@ def get_sun_infos (obs, dates:np.ndarray, tzinfo=tz.gettz("Europe/Paris")):
     }
     df, sun_infos = pd.DataFrame(), pd.DataFrame()
     df["date"] = dates
-    df["day"] = df.date.dt.floor("d")
+    df["day"] = df.date.floor("d")
     sun_infos["day"] = df.day.unique()
     for k,func in sun_functs.items():
         sun_infos[k] = sun_infos.day.apply(get_time(obs, func, tzinfo=tzinfo))
@@ -40,6 +63,7 @@ def get_sun_infos (obs, dates:np.ndarray, tzinfo=tz.gettz("Europe/Paris")):
 def find_suncycle_type (sun_infos:pd.DataFrame, dtAroundTwilightZone:float=5400.0):
     """
     """
+    sun_infos = measure_distToTwilight(sun_infos, dropMid=True)
     dist_tw_types = [dtw for dtw in sun_infos.columns if  dtw.startswith("dist_tw_")]
     for dtw in dist_tw_types:
         tw = dtw.replace("dist_tw_", "")
@@ -49,6 +73,12 @@ def find_suncycle_type (sun_infos:pd.DataFrame, dtAroundTwilightZone:float=5400.
     maskDaylight = maskDaylight&(sun_infos["dist_tw_setting"] < 0) # condition 3 => before twilight setting
     sun_infos.loc[maskDaylight, "suncycle"] = "daylight"
     sun_infos.loc[sun_infos["suncycle"].isna(), "suncycle"] = "night"
+    return sun_infos
+
+def measure_distTo (sun_infos:pd.DataFrame, colname:str, col_date:str="date"):
+    new_col = f"dist_{colname}" 
+    sun_infos[new_col] = sun_infos[col_date] - sun_infos[colname]
+    sun_infos[new_col] = sun_infos[new_col].dt.total_seconds()
     return sun_infos
 
 def measure_distToTwilight (sun_infos:pd.DataFrame, dropMid:bool=True):
@@ -69,7 +99,7 @@ def measure_distToTwilight (sun_infos:pd.DataFrame, dropMid:bool=True):
 def get_moon_infos (obs, dates:np.ndarray):
     df, moon_infos = pd.DataFrame(), pd.DataFrame()
     df["date"] = dates
-    df["day"] = df.date.dt.floor("d")
+    df["day"] = df.date.floor("d")
     moon_infos["day"] = df.day.unique()
     moon_infos["moon_phase"] = moon_infos.day.apply(moon.phase)
     df = df.merge(moon_infos, on="day")

@@ -31,8 +31,8 @@ class OpenMeteo ():
         params = {
             "latitude": self.latitude,
             "longitude": self.longitude,
-            "start_date": date_start.strftime("%Y-%m%d 00:00:00"),
-            "end_date": date_end.strftime("%Y-%m%d 00:00:00"),
+            "start_date": date_start.strftime("%Y-%m-%d"),
+            "end_date": date_end.strftime("%Y-%m-%d"),
             "hourly": self.hourly,
             "timezone": self.timezone_str
         }

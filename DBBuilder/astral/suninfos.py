@@ -65,10 +65,8 @@ class Sun (BaseAstral):
             "date":date,
             "suncycle_type":suncycle_type,
             "suncycle_day":suncycle_day,
-            **tw_infos,
-            **day_infos
+            **tw_infos
         }
-        del sun_infos["day"]
         return sun_infos
         
     def get_suncycle_type (self, date, tw_infos:dict=None, format:str="%Y-%m-%d %H:%M:%S"):
@@ -146,8 +144,9 @@ class Sun (BaseAstral):
         dist_tw_rising = date - mid_tw_rising
         dist_tw_setting = date - mid_tw_setting
         tw_infos={
-            "mid_tw_rising":mid_tw_rising,
-            "mid_tw_seting":mid_tw_setting,
+            "date":date,
+            # "mid_tw_rising":mid_tw_rising,
+            # "mid_tw_seting":mid_tw_setting,
             "dist_tw_rising":dist_tw_rising.total_seconds(),
             "dist_tw_setting":dist_tw_setting.total_seconds()
         }

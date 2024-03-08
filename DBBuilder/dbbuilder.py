@@ -12,8 +12,8 @@ class DBBuilder (DateReader):
     """
     # DBBuilder
 
-    Python object for database generation from labels detection to organise and complete time series data by :
-    1) Organizing labels detection by `timefreq` (default count by minutes)
+    Python object for database generation from labels counting to organise and complete time series data by :
+    1) Organizing labels counting by `timefreq` (default count by minutes)
     2) Find astral informations about sun (suncycle) and moon (phase)
     3) Find meteorological informations 
 
@@ -24,7 +24,7 @@ class DBBuilder (DateReader):
     #### From labels occurence
 
     ```python
-        df = pd.read_csv("PATH/TO/DETECTION/OCCURENCE/file.csv")
+        df = pd.read_csv("PATH/TO/counting/OCCURENCE/file.csv")
         print(df)
         
         # Dataframe structure
@@ -47,7 +47,7 @@ class DBBuilder (DateReader):
     #### From labels count
 
     ```python
-        df = pd.read_csv("PATH/TO/DETECTION/OCCURENCE/file.csv")
+        df = pd.read_csv("PATH/TO/counting/OCCURENCE/file.csv")
         print(df)
         
         #     date                          label_0   ...  label_10  
@@ -70,7 +70,7 @@ class DBBuilder (DateReader):
     """
 
     input_count:pd.DataFrame=None
-    detection:pd.DataFrame=None
+    counting:pd.DataFrame=None
     meteo_infos_hourly:pd.DataFrame=None
     astral_infos_daily:pd.DataFrame=None
 
@@ -93,11 +93,11 @@ class DBBuilder (DateReader):
         self.input_count = df.copy()
         self.dateformat_input = format
         df = df.rename(columns={colname_date:"date"})
-        labels_count = self.agg_detection(df=df, cols_to_sum=colnames_label, 
+        labels_count = self.agg_counting(df=df, cols_to_sum=colnames_label, 
                                           colname_date="date", grpBy=None, timefreq=self.timefreq, 
                                           format=format, traget_prefix=label_prefix)
         self.colnames_label = colnames_label
-        self.detection = labels_count
+        self.counting = labels_count
         output = self.__create_db()
         return output
 
@@ -106,7 +106,7 @@ class DBBuilder (DateReader):
     def __generate_output(self):
         output={
             "data":{
-                f"detection_{self.timefreq}":self.detection,
+                f"counting_{self.timefreq}":self.counting,
                 "astral_infos_d":self.astral_infos_daily,
                 "meteo_infos_h":self.meteo_infos_hourly
             },
@@ -124,16 +124,16 @@ class DBBuilder (DateReader):
     
     def __create_db (self):
         """
-        Create database with detection, astral and meteo informations.
+        Create database with counting, astral and meteo informations.
         """
-        dates = self.detection.date
+        dates = self.counting.date
         # Astral infos
         self.astral_infos_daily = self.get_astral_infos_daily(date_start=dates.min(), date_end=dates.max(), format=format)
         suncycle_infos = pd.DataFrame(dates.apply(self.sun.get_infos, format=format).to_list())
         # Meteo  infos
         self.meteo_infos_hourly = self.meteo.get_meteo(date_start=dates.min(), date_end=dates.max())
-        # Detection infos
-        self.detection = pd.merge(self.detection, suncycle_infos, on="date")
+        # counting infos
+        self.counting = pd.merge(self.counting, suncycle_infos, on="date")
         output = self.__generate_output()
         return output
     
@@ -160,7 +160,7 @@ class DBBuilder (DateReader):
         df_count = df_count.add_prefix(prefix).reset_index(names=["date"])
         return df_count
     
-    def agg_detection (self, df:pd.DataFrame=None, cols_to_sum:list=None, colname_date:str="date", grpBy=["suncycle_type", "suncycle_day"], 
+    def agg_counting (self, df:pd.DataFrame=None, cols_to_sum:list=None, colname_date:str="date", grpBy=["suncycle_type", "suncycle_day"], 
                               timefreq="h", other_agg_params:dict={}, format="%Y-%m-%d %H:%M:%S", traget_prefix:str="label"):
         """
         Agregate a set of count (expl: label counts over time) by time frequency and other (default suncycle info)
@@ -183,7 +183,7 @@ class DBBuilder (DateReader):
         aggreg: pd.DataFrame
             results of aggregation
         """
-        df, cols_to_sum = [self.detection, self.colnames_label] if type(df) == type(None) else [df, cols_to_sum]
+        df, cols_to_sum = [self.counting, self.colnames_label] if type(df) == type(None) else [df, cols_to_sum]
         df[colname_date] = df[colname_date].apply(self.read_date, format=format)
         # Define columns to aggregate
         cols_to_sum = [c for c in df.columns if c.startswith(traget_prefix)] if not cols_to_sum else cols_to_sum

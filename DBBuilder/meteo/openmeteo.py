@@ -7,15 +7,16 @@ import numpy as np
 import datetime
 from dateutil import tz
 
+from DBBuilder.util.metadata import metadata
+
 class OpenMeteo ():
 
+    metadata = metadata[metadata["source"]=="openmeteo"]
     cache_session = requests_cache.CachedSession('.cache', expire_after = -1)
     retry_session = retry(cache_session, retries = 5, backoff_factor = 0.2)
     openmeteo = openmeteo_requests.Client(session = retry_session)
     url = "https://archive-api.open-meteo.com/v1/archive"
-    hourly = ["temperature_2m", "relative_humidity_2m", "precipitation", 
-              "rain", "cloud_cover", "et0_fao_evapotranspiration", 
-              "soil_temperature_0_to_7cm", "soil_moisture_0_to_7cm"]
+    rename_columns:bool=True
 
     def __init__(self, latitude:float=48.886, longitude:float=2.333, timezone:str="UTC") -> None:
         self.latitude = latitude
@@ -33,7 +34,7 @@ class OpenMeteo ():
             "longitude": self.longitude,
             "start_date": date_start.strftime("%Y-%m-%d"),
             "end_date": date_end.strftime("%Y-%m-%d"),
-            "hourly": self.hourly,
+            "hourly": self.metadata["colname"].values.tolist(),
             "timezone": self.timezone_str
         }
         responses = self.openmeteo.weather_api(self.url, params=params)
@@ -49,6 +50,8 @@ class OpenMeteo ():
         for i in range(len(params["hourly"])):
             hourly_data[params["hourly"][i]] = hourly.Variables(i).ValuesAsNumpy()
         hourly_dataframe = pd.DataFrame(data = hourly_data)
+        if self.rename_columns:
+            hourly_dataframe = self.rename_columns_with_metadata(df=hourly_dataframe)
         return hourly_dataframe
 
     def read_date (self, date:any, format:str="%Y-%m-%d %H:%M:%S"):
@@ -59,3 +62,15 @@ class OpenMeteo ():
         if date.tzinfo != self.timezone:
             date = date.replace(tzinfo=self.timezone)
         return date
+    
+    def rename_columns_with_metadata (self, df:pd.DataFrame):
+        metadata = pd.DataFrame(self.metadata).set_index("colname")
+        rename_columns = {}
+        for i in metadata.index:
+            if i in df.columns:
+                varname = metadata.loc[i]["varname"]
+                metadata_infos = metadata.loc[i][["type", "source", "unit", "timefreq"]].values.tolist()
+                str_metadata_infos = ",".join([str(info) for info in metadata_infos])
+                new_colname=f"{varname} [{str_metadata_infos}]"
+                rename_columns[i] = new_colname
+        return df.rename(columns=rename_columns)

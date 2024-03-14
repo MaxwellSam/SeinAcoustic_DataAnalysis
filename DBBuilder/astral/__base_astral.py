@@ -9,8 +9,9 @@ class BaseAstral (DateReader):
     astral_functs:dict 
     data=pd.DataFrame() 
 
-    def __init__(self, latitude:float=48.886, longitude:float=2.333, elevation:float=35, timezone:str="UTC", **kargs) -> None:
+    def __init__(self, latitude:float=48.886, longitude:float=2.333, elevation:float=35, timezone:str="UTC", timefreq:str="h", **kargs) -> None:
         self.obs = Observer(latitude=latitude, longitude=longitude, elevation=elevation)
+        self.timefreq = timefreq
         super().__init__(timezone)
     
     def daily_infos_in_range (self, start, end):

@@ -141,8 +141,8 @@ class Sun (BaseAstral):
         sunrise, dawn, sunset, dusk = [day_infos[k] for k in keys_tw]
         mid_tw_rising = dawn + (sunrise - dawn)/2
         mid_tw_setting = sunset + (dusk - sunset)/2
-        dist_tw_rising = date - mid_tw_rising
-        dist_tw_setting = date - mid_tw_setting
+        dist_tw_rising = date - mid_tw_rising.floor(self.timefreq)
+        dist_tw_setting = date - mid_tw_setting.floor(self.timefreq)
         tw_infos={
             "date":date,
             # "mid_tw_rising":mid_tw_rising,

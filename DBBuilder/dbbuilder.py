@@ -18,6 +18,8 @@ from DBBuilder.datareader import Otoriver_DataReader, Sensea_DataReader
 from DBBuilder.datareader.__base_datareader import Base_DataReader
 from DBBuilder.util.datetime import convert_all_dtcolumns_to_str
 
+from DBBuilder.util.metadata import metadata
+
 class DBBuilder (DateReader):
 
     """
@@ -58,21 +60,23 @@ class DBBuilder (DateReader):
     Sam MAXWELL - 2024
     """
 
-    input_count:pd.DataFrame=None
-    descriptor_infos:pd.DataFrame=None
-    meteo_infos_hourly:pd.DataFrame=None
-    astral_infos_daily:pd.DataFrame=None
-    reader:Base_DataReader=None
-    metadata:list=None
-    agg_unit_operation:dict={
-        "nb":"mean",
-        "pct":"mean",
-        "nb/sec":"mean",
-        "db":"mean"
-    }
-    prefix_label:str = "acoustique"
+    input_data:dict={}
+    output_data:dict={}
 
-    def __init__(self, latitude:float=48.886, longitude:float=2.333, elevation:float=35, timezone:str="UTC", timefreq="min", dateformat_output:str="%Y-%m-%d %H:%M:%S",**kargs) -> None:
+    acoustic:pd.DataFrame
+    meteo_h:pd.DataFrame=None
+    astral_d:pd.DataFrame=None
+
+    metadata:pd.DataFrame=metadata
+
+    # agg_unit_operation:dict={
+    #     "nb":"mean",
+    #     "%":"mean",
+    #     "nb/sec":"mean",
+    #     "db":"mean"
+    # }
+
+    def __init__(self, latitude:float=48.886, longitude:float=2.333, elevation:float=35, timezone:str="UTC", dateformat_output:str="%Y-%m-%d %H:%M:%S",**kargs) -> None:
         # --- Objects initialisation --- #
         ## Astral objects
         self.sun = Sun(latitude=latitude, longitude=longitude, elevation=elevation, timezone=timezone, **kargs)
@@ -80,55 +84,109 @@ class DBBuilder (DateReader):
         ## Meteo object
         self.meteo = OpenMeteo(latitude=latitude, longitude=longitude, timezone=timezone)
         # --- Variables --- #
-        self.timefreq = timefreq
+        # self.timefreq = timefreq
         self.dateformat_output = dateformat_output
         self.latitude, self.longitude, self.elevation = latitude, longitude, elevation
         super().__init__(timezone=timezone)
     
     # ---- input functions ---- #
         
-    def from_sensea (self, input:any, cols_label:list=["label"], cols_date:list=["date"], 
-                     dateformat:list=[["%Y-%m-%d %H:%M:%S"]],
-                     csv_sep:str=',', csv_decimal:str='.'):
-        self.reader = Sensea_DataReader()
-        self.metadata = self.reader.metadata
-        df = self.read_source(input=input, reader=self.reader, cols_date=cols_date, cols_label=cols_label, dateformat=dateformat,
-                              csv_sep=csv_sep, csv_decimal=csv_decimal)
-        self.descriptor_key = [c for c in df.columns if c != "date"]
-        df = self.__exec(df=df)
+    def clear (self):
+        for k in ["acoustic", "meteo_h", "astral_d"]:
+            del self.__dict__[k]
+            self.__dict__[k] = None
+        del self.input_data
+        self.input_data = {}
+        self.output_data = {}
         
-    def from_otoriver (self, input:any, cols_label:list=["label"], cols_date:list=["date"], 
-                     dateformat:list=[["%Y-%m-%d %H:%M:%S"]],
-                     csv_sep:str=',', csv_decimal:str='.'):
-        self.reader = Otoriver_DataReader()
-        self.reader.metadata
-        df = self.read_source(input=input, reader=self.reader, cols_date=cols_date, cols_label=cols_label, dateformat=dateformat,
-                              csv_sep=csv_sep, csv_decimal=csv_decimal)
-        self.descriptor_key = [c for c in df.columns if c != "date"]
-        df = self.__exec(df=df)
-
-    def read_source (self, input:any, reader:Base_DataReader, cols_label:list=["label"], cols_date:list=["date"], 
-                     dateformat:list=[["%Y-%m-%d %H:%M:%S"]],
-                     csv_sep:str=',', csv_decimal:str='.') -> pd.DataFrame:
-        try: 
-            if type(input) == str:
-                if input.endswith(".csv"):
-                    df_descriptor_infos = reader.from_csv(filepath=input, cols_label=cols_label, cols_date=cols_date, 
-                                                            dateformat=dateformat, sep=csv_sep, decimal=csv_decimal)
-                elif input.endswith(".xlsx"):
-                    df_descriptor_infos = reader.from_xslx(filepath=input, cols_label=cols_label, cols_date=cols_date, 
-                                                            dateformat=dateformat)
-                else:
-                    raise ValueError("DBBuilder: input file not available, be sure to use .csv or .xlsx file.")
-            elif type(input) == pd.DataFrame:
-                df_descriptor_infos = reader.from_dataframe(df=input, cols_label=cols_label, cols_date=cols_date, 
-                                                                dateformat=dateformat)
-            else:
-                raise ValueError("DBBuilder: input type not available, be sure to use a filepath or a dataframe.")
+    def add_new_data (self, input:any, datareader:Base_DataReader):
+        """
+        Add new data in DBBuilder
+        """
+        id_reader = str(datareader.__class__).split("'")[1].split('.')[-1]
+        timefreq = datareader.timefreq
+        try :
+            df = datareader.from_input(input=input)
         except Exception as e:
-            raise e
+            print(f"DBBuilder: failed to add new data")
+            print(e)
         else:
-            return df_descriptor_infos
+            if not timefreq in self.input_data.keys():
+                self.input_data[timefreq] = {}
+            if not id_reader in self.input_data[timefreq]:
+                self.input_data[timefreq][id_reader] = df
+            else:
+                df_exist = self.input_data[timefreq][id_reader] 
+                new_df = pd.concat([df_exist, df])
+                new_df = df.drop_duplicates(subset="date", keep="last")
+                df_exist = self.input_data[timefreq][id_reader] = new_df
+
+    def build (self, output_folder:str=None):
+        output = None
+        if len(self.input_data) == 0:
+            raise ValueError("DBBuilder: no input data in DBBuilder object")
+        else:
+            input_data_merged = self.__merge_input_data()
+            
+    
+    def __merge_input_data (self):
+        output_data = {}
+        for timefreq in self.input_data.keys():
+            timefreq_data = self.input_data[timefreq]
+            df_timefreq = None
+            for datatype in timefreq_data.keys():
+                df_datatype = timefreq_data[datatype]
+                if type(df_datatype) == type(None):
+                    df_timefreq = df_datatype
+                else:
+                    df_timefreq = pd.merge(df_timefreq, df_datatype, on="date", how="outer")
+            output_data[timefreq] = df_timefreq
+            del self.input_data[timefreq]
+        return output_data
+        
+        
+    # def from_sensea (self, input:any, colnames_var:list=["label"], colname_date:str="date", 
+    #                  dateformat:list=[["%Y-%m-%d %H:%M:%S"]],
+    #                  csv_sep:str=',', csv_decimal:str='.'):
+    #     self.reader = Sensea_DataReader()
+    #     self.metadata = self.reader.metadata
+    #     df = self.read_source(input=input, reader=self.reader, colname_date=colname_date, colnames_var=colnames_var, dateformat=dateformat,
+    #                           csv_sep=csv_sep, csv_decimal=csv_decimal)
+    #     self.descriptor_key = [c for c in df.columns if c != "date"]
+    #     df = self.__exec(df=df)
+        
+    # def from_otoriver (self, input:any, colnames_var:list=["label"], colname_date:str="date", 
+    #                  dateformat:list=[["%Y-%m-%d %H:%M:%S"]],
+    #                  csv_sep:str=',', csv_decimal:str='.'):
+    #     self.reader = Otoriver_DataReader()
+    #     self.reader.metadata
+    #     df = self.read_source(input=input, reader=self.reader, colname_date=colname_date, colnames_var=colnames_var, dateformat=dateformat,
+    #                           csv_sep=csv_sep, csv_decimal=csv_decimal)
+    #     self.descriptor_key = [c for c in df.columns if c != "date"]
+    #     df = self.__exec(df=df)
+
+    # def read_source (self, input:any, reader:Base_DataReader, colnames_var:list=["label"], colname_date:str="date", 
+    #                  dateformat:list=[["%Y-%m-%d %H:%M:%S"]],
+    #                  csv_sep:str=',', csv_decimal:str='.') -> pd.DataFrame:
+    #     try: 
+    #         if type(input) == str:
+    #             if input.endswith(".csv"):
+    #                 df_descriptor_infos = reader.from_csv(filepath=input, colnames_var=colnames_var, colname_date=colname_date, 
+    #                                                         dateformat=dateformat, sep=csv_sep, decimal=csv_decimal)
+    #             elif input.endswith(".xlsx"):
+    #                 df_descriptor_infos = reader.from_xslx(filepath=input, colnames_var=colnames_var, colname_date=colname_date, 
+    #                                                         dateformat=dateformat)
+    #             else:
+    #                 raise ValueError("DBBuilder: input file not available, be sure to use .csv or .xlsx file.")
+    #         elif type(input) == pd.DataFrame:
+    #             df_descriptor_infos = reader.from_dataframe(df=input, colnames_var=colnames_var, colname_date=colname_date, 
+    #                                                             dateformat=dateformat)
+    #         else:
+    #             raise ValueError("DBBuilder: input type not available, be sure to use a filepath or a dataframe.")
+    #     except Exception as e:
+    #         raise e
+    #     else:
+    #         return df_descriptor_infos
 
     def __exec(self, df:pd.DataFrame):
         self.input_count = df.copy()

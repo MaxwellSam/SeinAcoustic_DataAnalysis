@@ -25,6 +25,7 @@ class Otoriver_DataReader (Base_DataReader):
     ```
     """
 
+    source:str = "otoriver"
     metadata = metadata[metadata["source"]=="otoriver"]
 
     kepp_in_duplicated_dates:str="max" 
@@ -37,6 +38,8 @@ class Otoriver_DataReader (Base_DataReader):
     
     def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
         metadata = self.metadata.set_index("varname")
+        var_to_keep = [c for c in df.columns if c in metadata.index]
+        df = df[["date", *var_to_keep]]
         # 1) Remove duplicated dates in data
         df = clean_dataframe.remove_duplicated_values(df=df, target_cols=["date"], keep=self.kepp_in_duplicated_dates)
         # 2) Aggregation per unit types => timestamp = self.timefreq 

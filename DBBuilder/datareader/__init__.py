@@ -50,6 +50,19 @@ task (update column names with relevant informations, perform specific operation
 | 10 | Bioclicks mammifères        | Bioclicks mammifères        | acoustique | otoriver | %      |        nan |
 | 11 | Poissons 20-400 Hz          | Poissons 20-400 Hz          | acoustique | otoriver | db     |        nan |
 
+##### Expl : Output generated for otoriver with `timefreq="h"``
+
+|      | date                |   Bioclicks [acoustique,otoriver,nb/sec] |   Bioclicks 40K [acoustique,otoriver,nb/sec] |   Blioclicks 2-30K [acoustique,otoriver,nb/sec] |
+|-----:|:--------------------|-----------------------------------------:|---------------------------------------------:|------------------------------------------------:|
+|    0 | 2023-08-28 00:00:00 |                                   41.852 |                                           19 |                                               0 |
+|    1 | 2023-08-28 01:00:00 |                                   39.582 |                                            0 |                                               0 |
+|    2 | 2023-08-28 02:00:00 |                                   40.853 |                                            0 |                                               0 |
+|    3 | 2023-08-28 03:00:00 |                                   41.797 |                                           15 |                                               0 |
+|    4 | 2023-08-28 04:00:00 |                                   38.245 |                                            0 |                                               0 |
+...
+| 1920 | 2023-12-08 02:00:00 |                                   39.603 |                                            1 |                                               0 |
+| 1921 | 2023-12-08 03:00:00 |                                   36.545 |                                            4 |                                               0 |
+| 1922 | 2023-12-08 04:00:00 |                                   30.993 |                                           10 |                                               0 |
 """
 
 from DBBuilder.datareader.__otoriver_datareader import Otoriver_DataReader

@@ -8,8 +8,8 @@ class Sensea_DataReader (Base_DataReader):
     source_name:str = "sensea"
     metadata = metadata[metadata["source"] == "sensea"]
 
-    def __init__(self, timefreq: str = "h", sep: str = ',', decimal: str = '.', colnames_var: list = ["label"], colname_date: str = "date", dateformat: str = "%Y-%m-%d %H:%M:%S") -> None:
-        super().__init__(timefreq, sep, decimal, colnames_var, colname_date, dateformat)
+    def __init__(self, timefreq: str = "h", sep: str = ',', decimal: str = '.', colnames_var: list = ["label"], colname_date: str = "date", dateformat: str = "%Y-%m-%d %H:%M:%S", renamecolumns:bool=True) -> None:
+        super().__init__(timefreq, sep, decimal, colnames_var, colname_date, dateformat, renamecolumns)
     
     def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
         df["date"] = df["date"].dt.floor(self.timefreq)

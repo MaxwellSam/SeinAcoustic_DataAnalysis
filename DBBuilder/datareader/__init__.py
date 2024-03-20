@@ -67,3 +67,4 @@ task (update column names with relevant informations, perform specific operation
 
 from DBBuilder.datareader.__otoriver_datareader import Otoriver_DataReader
 from DBBuilder.datareader.__sensea_datareader import Sensea_DataReader
+from DBBuilder.datareader.__phch_cont_DataReader import PhCh_Continus_DataReader

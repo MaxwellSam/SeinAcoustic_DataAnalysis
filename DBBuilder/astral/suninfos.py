@@ -14,8 +14,8 @@ class Sun (BaseAstral):
         "midnight":sun.midnight
     }
     
-    def __init__(self, latitude: float = 48.886, longitude: float = 2.333, elevation: float = 35, timeAroundTW:float=5400.0, timezone: str = "UTC", **kargs) -> None:
-        super().__init__(latitude, longitude, elevation, timezone, **kargs)
+    def __init__(self, latitude: float = 48.886, longitude: float = 2.333, elevation: float = 35, timeAroundTW:float=5400.0, timezone: str = "UTC", timefreq:str="h", **kargs) -> None:
+        super().__init__(latitude, longitude, elevation, timezone, timefreq, **kargs)
         self.timeAroundTW = timeAroundTW
 
     def get_infos (self, date, format:str="%Y-%m-%d %H:%M:%S"):
@@ -141,8 +141,8 @@ class Sun (BaseAstral):
         sunrise, dawn, sunset, dusk = [day_infos[k] for k in keys_tw]
         mid_tw_rising = dawn + (sunrise - dawn)/2
         mid_tw_setting = sunset + (dusk - sunset)/2
-        dist_tw_rising = date - mid_tw_rising.floor(self.timefreq)
-        dist_tw_setting = date - mid_tw_setting.floor(self.timefreq)
+        dist_tw_rising = date - mid_tw_rising.round(self.timefreq)
+        dist_tw_setting = date - mid_tw_setting.round(self.timefreq)
         tw_infos={
             "date":date,
             # "mid_tw_rising":mid_tw_rising,

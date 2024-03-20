@@ -12,8 +12,10 @@ class PhCh_Continus_DataReader (Base_DataReader):
 
     # Input data structure
     """
-
+    
+    kepp_in_duplicated_dates:str="max" 
     metadata = metadata[metadata["source"] == "phch_continue"]
 
     def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
+
         return df

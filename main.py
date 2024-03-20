@@ -3,47 +3,24 @@ import glob
 import pandas as pd
 from  tqdm import tqdm
 import os
-
+from IPython.display import display
 # Variables
 
 city_name = "Bougival"
 lat, long, elev = 48.865, 2.144, 23
 timezone="UTC"
 
-input_path = "./data/bougival/acoustique/acoustique SENSEA/yolo/"
-output_path = "./data/bougival/database/"
-db_filename = f"{city_name}_database"
-date_format = "%Y-%m-%d %H:%M:%S"
+filepath_otoriver = "data/Data_SAM/Bougival/input/acoustique/otoriver/otoriver_2021-07-06_2023-12-08.xlsx" 
+filepath_sensea = "data/Data_SAM/Bougival/input/acoustique/sensea/sensea_2021-06-16_2023-11-21.csv"
 
+filepath_output = "data/Data_SAM/Bougival/database.xlsx"
 
 # Program
 
-def main ():
-    # DBBuilder initialisation
-    dbbuilder = DBBuilder(latitude=lat, longitude=long, elevation=elev, timezone=timezone)
-    # Get csv files in input_path wich contain accoustic labels occurence
-    files = glob.glob(input_path+"*.csv", recursive=True)
-    # Concat all files in a single df
-    dfs_db = []
-    for file in tqdm(files):
-        df = pd.read_csv(file)
-        dfs_db.append(df)
-    db = pd.concat(dfs_db)
-    db = db.sort_values(by="date")
-    # Generate database from labels occurence data
-    db = dbbuilder.run(dates=db.date, labels=db.label)
-    # convert datetime to string
-    date_columns = [col for col in db.columns if pd.api.types.is_datetime64_any_dtype(db[col])]
-    for col in date_columns:
-        db[col] = db[col].dt.strftime(date_format)
-    # Save database
-    if not os.path.exists(output_path):
-        os.makedirs(output_path)
-    db.to_csv(os.path.join(output_path, db_filename+".csv"), index=False)
-    db.to_excel(os.path.join(output_path, db_filename+".xlsx"))
+dbbuilder = DBBuilder(input_isHourly=True, output_asdataframe=True)
+output = dbbuilder.build_from_seinAcousticSourceFiles(acoustic_sensea=filepath_sensea, acoustic_otoriver=filepath_otoriver)
+dbbuilder.export_to_xlsx(filepath=filepath_output)
 
-# Exec
 
-main()
 
 

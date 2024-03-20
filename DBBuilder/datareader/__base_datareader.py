@@ -22,20 +22,26 @@ class Base_DataReader ():
     - Preprocessing to standardize data => output with specified time frequency  
     - Rename label columns according to metadata. 
     """
-    
-    source_name:str = None
+
+
     metadata:pd.DataFrame=None
     option_rename_columns:bool=True
+    
+    # resampling variables
+    interpolate_option:bool=False
+    interpolation_method="linear"
+    agg_args:any="mean" 
 
     def __init__(self, timefreq:str="h", sep:str=',', decimal:str='.', 
                  colnames_var:list=None, colname_date:str="date", 
-                 dateformat:str="%Y-%m-%d %H:%M:%S") -> None:
+                 dateformat:str="%Y-%m-%d %H:%M:%S", renamecolumns:bool=True) -> None:
         self.timefreq = timefreq
         self.sep = sep
         self.decimal = decimal
         self.colnames_var = colnames_var
         self.colname_date = colname_date
         self.dateformat = dateformat
+        self.option_rename_columns = renamecolumns
 
     # ------ input methods ------ #
         
@@ -83,11 +89,27 @@ class Base_DataReader ():
             cols_to_keep = ["date", *colnames_var]
             df = df[cols_to_keep]
         df = self.prepare_data(df)
+        df = self.resample_with_timefreq(df=df)
         if self.option_rename_columns:
             df = self.rename_columns_with_metadata(df)
         return df
 
     # ------ preprocessinf method ----- #
+
+    def resample_with_timefreq (self, df:pd.DataFrame, colname_date:str="date"):
+        output = None
+        desired_timefreq = self.timefreq
+        actual_timefreq = df[colname_date].diff().min()
+        resampled_data = df.set_index(colname_date).resample(desired_timefreq)
+        if desiredTimeFreq_IsLower (actual_timefreq, desired_timefreq):
+            if self.interpolate_option:
+                output = resampled_data.interpolate(method=self.interpolation_method)
+            else:
+                output = resampled_data.ffill()
+        else:
+            output = resampled_data.agg(self.agg_args)
+        output = output.reset_index()
+        return output
 
     def prepare_data (self, df:pd.DataFrame) -> pd.DataFrame:
         """
@@ -98,7 +120,7 @@ class Base_DataReader ():
     # ------ other ------- #
 
     def rename_columns_with_metadata (self, df:pd.DataFrame):
-        metadata = pd.DataFrame(self.metadata).set_index("colname")
+        metadata = self.metadata.set_index("colname")
         rename_columns = {}
         for i in metadata.index:
             if i in df.columns:
@@ -120,7 +142,7 @@ class Base_DataReader ():
                 df = df.rename(columns={colname_date:"date"}) 
         if df["date"].dtype == 'object':
             df["date"] = pd.to_datetime(df["date"], format=dateformat)
-        df["date"] = df["date"].dt.floor(self.timefreq)
+        # df["date"] = df["date"].dt.floor(self.timefreq)
         return df
 
 # ----------- methods -------------- # 
@@ -137,3 +159,7 @@ class Base_DataReader ():
 #         if type(df["date"][0]) == str:
 #             df["date"] = pd.to_datetime(df["date"], format=dateformat)
 #     return df
+    
+def desiredTimeFreq_IsLower (timedelta:pd.Timedelta, timefreq:str="h"):
+    timefreq = "1"+timefreq if timefreq in ["s", "min", "h", "d"] else timefreq
+    return timedelta < pd.Timedelta(timefreq)

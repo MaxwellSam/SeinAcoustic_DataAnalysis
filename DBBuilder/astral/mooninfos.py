@@ -8,8 +8,8 @@ class Moon (BaseAstral):
         "moon_phase":moon.phase
     }
 
-    def __init__(self, latitude: float = 48.886, longitude: float = 2.333, elevation: float = 35, timezone: str = "UTC", **kargs) -> None:
-        super().__init__(latitude, longitude, elevation, timezone, **kargs)
+    def __init__(self, latitude: float = 48.886, longitude: float = 2.333, elevation: float = 35, timezone: str = "UTC", timefreq:str="h", **kargs) -> None:
+        super().__init__(latitude, longitude, elevation, timezone, timefreq, **kargs)
 
     def get_infos(self, date, format:str="%Y-%m-%d %H:%M:%S"):
         date = self.read_date(date, format=format)

@@ -25,7 +25,7 @@ class Otoriver_DataReader (Base_DataReader):
     ```
     """
     metadata = metadata[metadata["source"]=="otoriver"]
-
+    timefreq_input = "30min"
     kepp_in_duplicated_dates:str="max" 
     agg_options_byunit = {
         "nb/sec":"mean",
@@ -40,7 +40,8 @@ class Otoriver_DataReader (Base_DataReader):
     def prepare_data(self, df: pd.DataFrame) -> pd.DataFrame:
         metadata = self.metadata.set_index("colname")
         var_to_keep = [c for c in df.columns if c in metadata.index]
-        df = df[["date", *var_to_keep]]
+        df = df[["date", *var_to_keep]].copy()
+        df.date = df.date.dt.round(self.timefreq_input)
         # 1) Remove duplicated dates in data
         df = clean_dataframe.remove_duplicated_values(df=df, target_cols=["date"], keep=self.kepp_in_duplicated_dates)
         # 2) Aggregation per unit types => timestamp = self.timefreq 
@@ -52,6 +53,7 @@ class Otoriver_DataReader (Base_DataReader):
             agg_method_to_use = "mean" if not unit in self.agg_options_byunit.keys() else self.agg_options_byunit[unit] 
             agg_args[var] = agg_method_to_use
         self.agg_args = agg_args 
+        # self.agg_args = "mean"
         return df
         
             

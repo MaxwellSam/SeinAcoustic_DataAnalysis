@@ -1,0 +1,33 @@
+colname,varname,type,source,unit
+Bioclicks,Bioclicks,acoustique,otoriver,nb/sec
+Bioclicks séries 40K,Bioclicks séries 40K,acoustique,otoriver,%
+Bioclicks 40K,Bioclicks 40K,acoustique,otoriver,nb/sec
+Blioclicks séries 2-30K,Blioclicks séries 2-30K,acoustique,otoriver,%
+Blioclicks 2-30K,Blioclicks 2-30K,acoustique,otoriver,nb/sec
+Bioclicks US,Bioclicks US,acoustique,otoriver,nb/sec
+Phoque de Wedell,Phoque de Wedell,acoustique,otoriver,nb
+Phoque Barbu,Phoque Barbu,acoustique,otoriver,nb
+Dauphins sifflements,Dauphins sifflements,acoustique,otoriver,nb
+Baleines chant,Baleines chant,acoustique,otoriver,nb
+Bioclicks mammifères,Bioclicks mammifères,acoustique,otoriver,%
+Poissons 20-400 Hz,Poissons 20-400 Hz,acoustique,otoriver,nb
+SPL Poissons 20-400 Hz,SPL Poissons 20-400 Hz,acoustique,otoriver,db
+Poissons 400-2000 Hz,Poissons 400-2000 Hz,acoustique,otoriver,nb
+SPL Poissons 400-2000 Hz,SPL Poissons 400-2000 Hz,acoustique,otoriver,db
+Bateaux totaux,Bateaux totaux,acoustique,otoriver,nb
+SEL Bateau individuel,SEL Bateau individuel,acoustique,otoriver,db
+SEL Bateaux totaux,SEL Bateaux totaux,acoustique,otoriver,db
+Niveau sonore 10Hz - 10 kHz,Niveau sonore 10Hz - 10 kHz,acoustique,otoriver,db
+Niveau sonore 63Hz,Niveau sonore 63Hz,acoustique,otoriver,db
+Niveau sonore 125Hz,Niveau sonore 125Hz,acoustique,otoriver,db
+0,0,acoustique,sensea,nb
+1,1,acoustique,sensea,nb
+2,2,acoustique,sensea,nb
+3,3,acoustique,sensea,nb
+4,4,acoustique,sensea,nb
+5,5,acoustique,sensea,nb
+6,6,acoustique,sensea,nb
+7,7,acoustique,sensea,nb
+8,8,acoustique,sensea,nb
+9,9,acoustique,sensea,nb
+10,10,acoustique,sensea,nb

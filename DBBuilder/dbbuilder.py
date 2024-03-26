@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 from dateutil import tz
 from IPython.display import display
+import os
 # ------ DBBuilder imports ------ # 
 from DBBuilder.__datereader import DateReader
 from DBBuilder import Sun, Moon
@@ -34,7 +35,7 @@ class DBBuilder (DateReader):
     
     ### 1) Generate database
 
-    # #### From labels count
+    #### From labels count
 
     ```python
         df = pd.read_csv("PATH/TO/descriptor_infos/OCCURENCE/file.csv")
@@ -70,6 +71,7 @@ class DBBuilder (DateReader):
 
     ## Output
     output_renamecolumns:bool=None
+    output_add_metedata_in_colname:bool=None
     output_asdataframe:bool=None
     roundValuesAt:int=3
     orient:str="records"
@@ -79,7 +81,8 @@ class DBBuilder (DateReader):
     def __init__(self, latitude:float=48.886, longitude:float=2.333, elevation:float=35, 
                  timezone:str="UTC", colname_date:str="date", input_timefreq:str="15min",
                  dateformat:str="%Y-%m-%d %H:%M:%S", sep:str=",", decimal:str=".", 
-                 output_renamecolumns:bool=True, output_asdataframe:bool=False, 
+                 output_renamecolumns:bool=True, output_add_metadata_in_colname:bool=True,
+                 output_asdataframe:bool=False, 
                  **kargs) -> None:
         # --- Objects initialisation --- #
         ## Astral objects
@@ -95,11 +98,8 @@ class DBBuilder (DateReader):
         # --- Options --- # 
         self.input_timefreq = input_timefreq
         self.output_renamecolumns = output_renamecolumns
-        self.output_asdataframe = output_asdataframe
-        # DataReaders
-        self.sensea_datareader = Sensea_DataReader(timefreq=self.input_timefreq, colname_date=colname_date, dateformat=dateformat, renamecolumns=self.output_renamecolumns)
-        self.otoriver_datareader = Otoriver_DataReader(timefreq=self.input_timefreq, colname_date=colname_date, dateformat=dateformat, renamecolumns=self.output_renamecolumns)
-        self.phch_h_datareader = PhCh_Continus_DataReader(timefreq=self.input_timefreq, colname_date=colname_date, dateformat=dateformat, renamecolumns=self.output_renamecolumns) 
+        self.output_add_metedata_in_colname = output_add_metadata_in_colname
+        self.output_asdataframe = output_asdataframe 
         super().__init__(timezone=timezone)
     
     # ---- input functions ---- #
@@ -126,8 +126,12 @@ class DBBuilder (DateReader):
             raise ValueError("DBBuilder: Bad input type. Be sure to use filepaht (.csv or .xlsx) or dataframe.")
         return df
     
-    def build_from_seinAcousticSourceFiles (self, acoustic_sensea:any=None, acoustic_otoriver:any=None, phch_hourly:any=None, phch_hebdo:any=None, timefreq:str=None):
+    def build_from_seinAcousticSourceFiles (self, acoustic_sensea:any=None, acoustic_otoriver:any=None, phch_continus:any=None, phch_hebdo:any=None, timefreq:str=None):
         input_dfs = []
+        args_datareader = {"timefreq":self.input_timefreq, "colname_date":self.colname_date, "dateformat":self.dateformat}
+        self.sensea_datareader = Sensea_DataReader(**args_datareader)
+        self.otoriver_datareader = Otoriver_DataReader(**args_datareader)
+        self.phch_continus_datareader = PhCh_Continus_DataReader(**args_datareader)
         # 1) read input data
         self.input_timefreq = self.input_timefreq if timefreq == None else timefreq
         if type(acoustic_sensea) != type(None):
@@ -138,9 +142,9 @@ class DBBuilder (DateReader):
             acoustic_otoriver = self.otoriver_datareader.from_input(input=acoustic_otoriver)
             input_dfs.append(acoustic_otoriver)
         if len(input_dfs) >= 1:
-            if type(phch_hourly) != type(None):
-                phch_hourly = self.phch_h_datareader.from_input(input=phch_hourly)
-                input_dfs.append(phch_hourly)
+            if type(phch_continus) != type(None):
+                phch_continus = self.phch_continus_datareader.from_input(input=phch_continus)
+                input_dfs.append(phch_continus)
             # 2) merge input data
             input_data = None
             for df in input_dfs:
@@ -150,7 +154,7 @@ class DBBuilder (DateReader):
                     input_data = pd.merge(input_data, df, on="date", how="outer")
             # 3) build dataset
             output = self.build(input=input_data)
-            del input_data, input_dfs, acoustic_sensea, acoustic_otoriver, phch_hourly
+            del input_data, input_dfs, acoustic_sensea, acoustic_otoriver, phch_continus
             return output
         else:
             raise ValueError("DBBuilder: No acoustic data in inputs.")
@@ -206,7 +210,7 @@ class DBBuilder (DateReader):
             del min_max_date
         else:
             data_h = data_h[["date", "suncycle_day", "suncycle_type", *numerical_cols]]
-        final_data_h = pd.merge(final_data_h, data_h, on="date", how="outer")
+        final_data_h = pd.merge(data_h, final_data_h, on="date", how="outer")
         final_data_h = final_data_h.round(self.roundValuesAt)
         self.hourly_data = final_data_h.copy()
         ## Delete un-used dataframes
@@ -248,7 +252,7 @@ class DBBuilder (DateReader):
                 "latitude":self.latitude,
                 "longitude":self.longitude,
                 "elevation":self.elevation,
-                "timezone":self.timezone
+                "timezone":self.timezone_str
             }
         }
         for k in output["data"].keys():
@@ -276,18 +280,29 @@ class DBBuilder (DateReader):
         self.metadata.to_excel(writer, sheet_name="metadata", index=False)
         writer.close()
 
-    
-    def rename_columns_with_metadata (self, df:pd.DataFrame):
+    def export_to_csv (self, folderpath:str='', baseFilename:str="dataset"):
+        date_intervals = "-".join([d.strftime("%Y%m%d") for d in [self.daily_data.date.min(), self.daily_data.date.max()]])
+        for k, data in self.output["data"].items():
+            filepath = os.path.join(folderpath, f"{baseFilename}_{k}_{date_intervals}.csv")
+            if not type(data) == pd.DataFrame:
+                data = pd.DataFrame(data)
+            data.to_csv(filepath, index=False)
+        infos_df = pd.DataFrame({"info":self.output["infos"].keys(), "value":self.output["infos"].values()})
+        infos_df.to_csv(os.path.join(folderpath+f"{baseFilename}_infos.csv"), index=False)
+        self.metadata.to_csv(os.path.join(folderpath+f"{baseFilename}_metadata.csv"), index=False)
+
+    def rename_columns_with_metadata (self, df:pd.DataFrame, add_metadata_infos:bool=True):
         metadata = pd.DataFrame(self.metadata).set_index("colname")
         rename_columns = {}
         for i in metadata.index:
-            if i in df.columns:
-                varname = metadata.loc[i]["varname"]
-                metadata_infos = metadata.loc[i][["type", "source", "unit"]].values.tolist()
-                str_metadata_infos = ",".join([str(info) for info in metadata_infos])
-                new_colname=f"{varname} [{str_metadata_infos}]"
+            if str(i) in df.columns.astype(str):
+                new_colname = metadata.loc[i]["varname"]
+                if add_metadata_infos:
+                    metadata_infos = metadata.loc[i][["type", "source", "unit"]].values.tolist()
+                    str_metadata_infos = ",".join([str(info) for info in metadata_infos])
+                    new_colname += f" ({str_metadata_infos})"
                 rename_columns[i] = new_colname
-        self.metadata = metadata.reset_index()
+        # self.metadata = metadata.reset_index()
         return df.rename(columns=rename_columns)
 
 def join_multicolumns_level (columns:list, sep:str=" "):

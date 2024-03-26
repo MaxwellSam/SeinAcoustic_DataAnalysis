@@ -27,21 +27,31 @@ class Base_DataReader ():
     metadata:pd.DataFrame=None
     option_rename_columns:bool=True
     
+    timefreq_input = "30min"
     # resampling variables
+    resampling_option:bool=True
     interpolate_option:bool=False
     interpolation_method="linear"
     agg_args:any="mean" 
 
+    option_rename_columns:bool=False
+    option_add_metadata_in_colname:bool=False
+
     def __init__(self, timefreq:str="h", sep:str=',', decimal:str='.', 
                  colnames_var:list=None, colname_date:str="date", 
-                 dateformat:str="%Y-%m-%d %H:%M:%S", renamecolumns:bool=True) -> None:
-        self.timefreq = timefreq
+                 dateformat:str="%Y-%m-%d %H:%M:%S", 
+                 renamecolumns:bool=False, add_metadata_in_colname:bool=False) -> None:
+        # input data infos
         self.sep = sep
         self.decimal = decimal
         self.colnames_var = colnames_var
         self.colname_date = colname_date
+        # datetime infos
+        self.timefreq = timefreq
         self.dateformat = dateformat
+        # Rename columns options
         self.option_rename_columns = renamecolumns
+        self.option_add_metadata_in_colname = add_metadata_in_colname
 
     # ------ input methods ------ #
         
@@ -89,47 +99,65 @@ class Base_DataReader ():
             cols_to_keep = ["date", *colnames_var]
             df = df[cols_to_keep]
         df = self.prepare_data(df)
-        df = self.resample_with_timefreq(df=df)
+        if self.resampling_option:
+            df = self.resample_with_timefreq(df=df)
         if self.option_rename_columns:
-            df = self.rename_columns_with_metadata(df)
+            df = self.rename_columns_with_metadata(df, add_metadata_infos=self.option_add_metadata_in_colname)
         return df
 
     # ------ preprocessinf method ----- #
 
-    def resample_with_timefreq (self, df:pd.DataFrame, colname_date:str="date"):
-        output = None
-        desired_timefreq = self.timefreq
-        actual_timefreq = df[colname_date].diff().min()
-        resampled_data = df.set_index(colname_date).resample(desired_timefreq)
-        if desiredTimeFreq_IsLower (actual_timefreq, desired_timefreq):
-            if self.interpolate_option:
-                output = resampled_data.interpolate(method=self.interpolation_method)
-            else:
-                output = resampled_data.ffill()
-        else:
-            output = resampled_data.agg(self.agg_args)
-        output = output.reset_index()
-        return output
-
     def prepare_data (self, df:pd.DataFrame) -> pd.DataFrame:
         """
-        Child method, not implemented in this parent class.
+        Prepare input data by performing specific pre-processing (note: depending on 
+        data type).
         """
-        raise NotImplementedError("Base_DataReader: `prepare_data` not implemented in this parent class.")
+        return df
+    
+    def resample_with_timefreq (self, df:pd.DataFrame, colname_date:str="date"):
+        """
+        Resampling data on output time frequency desired, three cases:
+        - aggreagtion (input timefreq < output timefreq)
+        - interpolation (input timefreq > output timefreq ; and interpolate_option=True)
+        - ffill (input timefreq > output timefreq ; and interpolate_option=False)
+        """
+        output_timefreq = timefreq_str2timedelta(self.timefreq)
+        df = df.set_index(colname_date)
+        # 1) input timefreq observation
+        diff_next = df.index.diff(periods=1)
+        mask_continus_timefreq = (diff_next.diff(periods=-1).seconds==0.0)
+        input_timefreq = diff_next[mask_continus_timefreq].min()
+        # 2) resampling to output timefreq
+        df_resampled = df.resample(output_timefreq)
+        if input_timefreq > output_timefreq:
+            # 2-case1: reduce timefreq
+            limit_new_points = int(input_timefreq/output_timefreq)
+            if self.interpolate_option:
+                df_resampled = df_resampled.interpolate(method=self.interpolation_method, limit=limit_new_points)
+            else:
+                df_resampled = df_resampled.ffill(limit=limit_new_points)
+        else:
+            # 2-case2: increase timefreq
+            df_resampled = df_resampled.agg(self.agg_args)
+        df_resampled = df_resampled.reset_index()
+        return df_resampled
     
     # ------ other ------- #
 
-    def rename_columns_with_metadata (self, df:pd.DataFrame):
-        metadata = self.metadata.set_index("colname")
+    def rename_columns_with_metadata (self, df:pd.DataFrame, add_metadata_infos:bool=False):
+        metadata = pd.DataFrame(self.metadata).set_index("colname")
         rename_columns = {}
         for i in metadata.index:
             if i in df.columns:
-                varname = metadata.loc[i]["varname"]
-                metadata_infos = metadata.loc[i][["type", "source", "unit"]].values.tolist()
-                str_metadata_infos = ",".join([str(info) for info in metadata_infos])
-                new_colname=f"{varname} [{str_metadata_infos}]"
+                new_colname = metadata.loc[i]["varname"]
+                if add_metadata_infos:
+                    metadata_infos = metadata.loc[i][["type", "source", "unit"]].values.tolist()
+                    str_metadata_infos = ",".join([str(info) for info in metadata_infos])
+                    new_colname += f" ({str_metadata_infos})"
                 rename_columns[i] = new_colname
+        # self.metadata = metadata.reset_index()
         return df.rename(columns=rename_columns)
+
     
     def prepare_datetime (self, df:pd.DataFrame, colname_date:str="date", dateformat:str="%Y-%m-%d %H:%M:%S"):
         if type(colname_date) == list and len(colname_date)>1:
@@ -163,3 +191,7 @@ class Base_DataReader ():
 def desiredTimeFreq_IsLower (timedelta:pd.Timedelta, timefreq:str="h"):
     timefreq = "1"+timefreq if timefreq in ["s", "min", "h", "d"] else timefreq
     return timedelta < pd.Timedelta(timefreq)
+
+def timefreq_str2timedelta (timefreq:str):
+    timefreq = "1"+timefreq if timefreq in ["s", "min", "h", "d"] else timefreq
+    return pd.Timedelta(timefreq)

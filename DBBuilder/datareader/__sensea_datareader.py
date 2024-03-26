@@ -5,8 +5,8 @@ from DBBuilder.util.metadata import metadata
 
 class Sensea_DataReader (Base_DataReader):
 
-    source_name:str = "sensea"
     metadata = metadata[metadata["source"] == "sensea"]
+    resampling_option = False
 
     def __init__(self, timefreq: str = "h", sep: str = ',', decimal: str = '.', colnames_var: list = ["label"], colname_date: str = "date", dateformat: str = "%Y-%m-%d %H:%M:%S", renamecolumns:bool=True) -> None:
         super().__init__(timefreq, sep, decimal, colnames_var, colname_date, dateformat, renamecolumns)
@@ -16,4 +16,5 @@ class Sensea_DataReader (Base_DataReader):
         df_grouped = df.groupby(['date', 'label']).size().reset_index(name='count')
         df_count = df_grouped.pivot_table(index='date', columns='label', values='count', fill_value=0)
         df_count = df_count.reset_index(names=["date"])
+        df_count.columns = df_count.columns.map(str)
         return df_count

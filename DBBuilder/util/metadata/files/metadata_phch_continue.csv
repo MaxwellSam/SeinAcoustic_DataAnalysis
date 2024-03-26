@@ -1,0 +1,7 @@
+colname,varname,type,source,unit,timefreq
+oxygene,oxygene,phch,phch_continue,mg/L,15h
+temperature,temperature,phch,phch_continue,°C,15h
+turbidite,turbidite,phch,phch_continue,FNU,15h
+pH,pH,phch,phch_continue,,15h
+conductivite,conductivite,phch,phch_continue,mS/m,15h
+phosphate,phosphate,phch,phch_continue,mg/L,15h

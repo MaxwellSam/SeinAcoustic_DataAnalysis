@@ -1,0 +1,13 @@
+colname,varname,type,source,unit,timefreq
+temperature_2m,temperature 2m,meteo,openmeteo,°C,h
+relative_humidity_2m,humidite relative 2m,meteo,openmeteo,%,h
+precipitation,precipitation,meteo,openmeteo,mm,h
+rain,pluie,meteo,openmeteo,mm,h
+snowfall,chute de neige,meteo,openmeteo,cm,h
+cloud_cover,couverture nuageuse,meteo,openmeteo,%,h
+et0_fao_evapotranspiration,evapotranspiration,meteo,openmeteo,mm,h
+soil_temperature_0_to_7cm,temperature du sol 0-7cm,meteo,openmeteo,°C,h
+soil_moisture_0_to_7cm,humidite du sol 0-7cm,meteo,openmeteo,m³/m³,h
+wind_speed_10m,vitesse du vent 10m,meteo,openmeteo,km/h,h
+pressure_msl,pression atmospherique ,meteo,openmeteo,hPa,h
+direct_radiation,radiation solaire direct,meteo,openmeteo,W/m²,h

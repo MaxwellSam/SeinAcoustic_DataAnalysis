@@ -1,0 +1,57 @@
+import pandas as pd
+import plotly.graph_objs as go
+import seaborn as sns
+import numpy as np
+
+from Visu.radar_plot.radar import create_radar_line, get_radar_traces
+
+def get_calendar_infos (df:pd.DataFrame, colname_date:str="date", colname_day:str=None):
+    colname_day = colname_date if colname_day == None else colname_day
+    df["year"] = df[colname_day].dt.strftime("%Y")
+    df["month"] = df[colname_day].dt.strftime("%m")
+    df["week"] = df[colname_day].dt.strftime("%U")
+    df["hour"] = df[colname_date].dt.strftime("%H")
+    return df
+
+def radar_traces_by (df:pd.DataFrame, for_cols:list=[], by=["week","year"], color_palette="hls"):
+    date_min, date_max = df.index.min(), df.index.max()
+    all_dates = pd.date_range(start=date_min, end=date_max, freq="h")
+    df.reindex(all_dates)
+    df = get_calendar_infos(df)
+    timeint_min_max = df.groupby(by)["date"].agg(["min", "max"]).reset_index()
+    timeint_nb_date = df.dropna(how="all").groupby(by)["date"].agg(["nunique"]).reset_index()
+    timeint_infos = pd.merge(timeint_min_max, timeint_nb_date, on=by, how="outer")
+    data = df.groupby([*by, "hour"])[for_cols].agg(["mean", "std"]).reset_index()
+    output = []
+    colors = sns.color_palette(palette=color_palette, n_colors=len(for_cols)).as_hex()
+    for condition in np.unique(data[by].values):
+        infos = timeint_infos[timeint_infos[by]==condition]
+        print(infos)
+        data_timeint = data[(data[by] == condition)]
+        print(data_timeint)
+        for j in range(len(for_cols)):
+            col = for_cols[j]
+            hexcolor = colors[j]            
+            radar_traces = get_radar_traces(
+                theta_values=data_timeint["hour"].values,
+                mean_values=data_timeint[col]["mean"].values,
+                error_values=data_timeint[col]["std"].values,
+                hexcolor=hexcolor,
+                tracename=col   
+            )
+            output.append(dict(
+                date_min=infos["min"],
+                date_max=infos["max"],
+                total_values=infos["nunique"],
+                radar_trace=radar_traces,
+                radar_fig=go.Figure().add_traces(radar_traces), 
+                varname=col
+            ))
+    return pd.DataFrame(output)
+
+def main ():
+    data = "data/Data_SAM/Bougival/output/Bougival_DataSet_hourly_data_20210531-20231208.csv"
+    df = pd.read_csv(data)
+    df["date"] = pd.to_datetime(df["date"])
+    cols_acoustic = [c for c in df.columns if "acoustique" in c]
+    return radar_traces_by(df, for_cols=cols_acoustic)

@@ -10,7 +10,9 @@ import datetime
 import os
 import math
 
-from Visu.radar_plot.radar_traces import get_traces_RadarWithSTDThresholds
+from Visu.radarVisu import TemporalRadarVis_withErrorThresholds
+# from Visu.radar_plot.radar_traces import get_traces_RadarWithSTDThresholds
+# from Visu.radar_plot.create_traces import create_radar_line
 
 default_input = "data/Data_SAM/Bougival/output/Bougival_DataSet_hourly_data_20210531-20231208.csv"
 default_output = "data/Data_SAM/Bougival/output/"
@@ -59,7 +61,9 @@ def plot_multiRadars (radar_collection:pd.DataFrame, descripteur:str, nbrOfcols:
     radar_collection["nbr_traces"] = radar_collection[descripteur].apply(lambda x: len(x))
     nbrOfRows=math.ceil(len(radar_collection)/nbrOfcols) 
     empty_subplots = (nbrOfcols*nbrOfRows)-len(radar_collection)
-    subplot_titles = radar_collection.apply(lambda row: f"{row['date_start'].strftime('%Y-%m-%d')} to {row['date_stop'].strftime('%Y-%m-%d')}", axis=1).values.tolist()
+    subplot_titles = radar_collection.apply(
+        lambda row: f"{row['date_start'].strftime('%Y-%m-%d')} to {row['date_stop'].strftime('%Y-%m-%d')}\n", axis=1
+        ).values.tolist()
     if empty_subplots > 0:
         subplot_titles += [""]*empty_subplots
     # subplot_titles = np.reshape(subplot_titles, (nbrOfRows, nbrOfcols)).tolist()
@@ -67,31 +71,50 @@ def plot_multiRadars (radar_collection:pd.DataFrame, descripteur:str, nbrOfcols:
         rows=nbrOfRows, 
         cols=nbrOfcols, 
         subplot_titles=subplot_titles,
-        specs=[[{"type":"polar"}]*nbrOfcols]*nbrOfRows,
-        # horizontal_spacing=0.3,
-        # vertical_spacing=0.3
+        specs=[[{"type":"scatterpolar"}]*nbrOfcols]*nbrOfRows,
+        # horizontal_spacing=0.01,
+        vertical_spacing=(0.5/nbrOfRows)
+        ).update_layout(
+            width=500*nbrOfcols,
+            height=500*nbrOfRows,
+            title=dict(
+                # automargin=True, 
+                text=title,
+                x=0.5,
+                font=dict(size=18),
+            ),
+            polar=dict(
+                radialaxis=dict(visible=True),
+                angularaxis=dict(visible=True)
+            ),
+            margin=dict(l=80, r=80, t=100, b=90),
+            # paper_bgcolor="#808080", # "#fff"
         )
+    # fig.update_layout(
+    #     autosize=False,
+    #     width=700*nbrOfcols,
+    #     height=700*nbrOfRows,
+    #     title=dict(
+    #         text=title,
+    #         x=0.5,
+    #         font=dict(size=15)
+    #         ),
+    #     margin=dict(t=200)
+    #     )
     idx_traces_to_show = radar_collection[radar_collection["nbr_traces"] == radar_collection["nbr_traces"].max()].index.values[0]
     for trace in radar_collection[descripteur].iloc[idx_traces_to_show]:
         trace["showlegend"] = True
     r,c = (1, 1)
     for idx,row in radar_collection.iterrows():
-        fig.add_traces(row[descripteur], rows=r, cols=c)
+        # fig.add_trace({"type":'scatterpolar'}, row=r, col=c)
+        traces = row[descripteur]
+        fig.add_traces(traces, rows=r, cols=c)
+        # for trace in traces:
+        #     fig.add_trace(trace, row=r, col=c)
         c+=1
         if c > nbrOfcols:
             c=1
             r+=1
-    fig.update_layout(
-        autosize=False,
-        width=700*nbrOfcols,
-        height=700*nbrOfRows,
-        title=dict(
-            text=title,
-            x=0.5,
-            font=dict(size=15)
-            ),
-        margin=dict(t=200)
-        )
     return fig
 
 # ==== MAIN ==== #

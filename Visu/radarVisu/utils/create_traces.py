@@ -3,12 +3,12 @@ from PIL import ImageColor
 import plotly.graph_objs as go
 import seaborn as sns
 
-def create_radar_line (theta_values:list, line_values:list, name:str="trace", 
+def create_radar_line (theta_values:list, line_values:list, name:str=None, 
                        mode:str="lines", hexcolor:str="#3182bd", 
                        lines_width:int=1, line_opacity:float=0.6, dash:str=None,
                        fill_values:list=None, hexcolor_fill:str=None, fill_opacity:int=None, 
                        legendgroup:str=None, showlegend=True, 
-                       minimalValue:bool=True, **kargs):
+                       minimalValue:float=None, **kargs):
     traces_container = []
     ## Setup line variables: 
     theta_values = np.append(theta_values, theta_values[0])
@@ -17,6 +17,9 @@ def create_radar_line (theta_values:list, line_values:list, name:str="trace",
         line_values[line_values<minimalValue] = minimalValue
     color_rgb = ImageColor.getcolor(hexcolor, mode="RGB")
     color_rgba = (*color_rgb, line_opacity)
+    color_rgb_fill = ImageColor.getcolor(hexcolor_fill, mode="RGB") if hexcolor_fill else color_rgb
+    fill_opacity = fill_opacity if fill_opacity else (line_opacity/2)
+    color_rgba_fill = (*color_rgb_fill, fill_opacity)
     ## Make trace
     traces_container.append(go.Scatterpolar(
             r=line_values,
@@ -36,9 +39,6 @@ def create_radar_line (theta_values:list, line_values:list, name:str="trace",
         fill_values = np.append(fill_values, fill_values[0])
         if minimalValue:
             fill_values[fill_values<minimalValue] = minimalValue
-        color_rgb_fill = ImageColor.getcolor(hexcolor_fill, mode="RGB") if hexcolor_fill else color_rgb
-        fill_opacity = fill_opacity if fill_opacity else (line_opacity/2)
-        color_rgba_fill = (*color_rgb_fill, fill_opacity)
         traces_container.append(go.Scatterpolar(
             r=fill_values,
             theta=theta_values,
@@ -48,18 +48,19 @@ def create_radar_line (theta_values:list, line_values:list, name:str="trace",
                 width=0),
             fill='tonext',
             fillcolor=f"rgba{color_rgba_fill}",
-            name=f"area {name}",
+            name=None,
             legendgroup=legendgroup,
             showlegend=False
         ))
     return traces_container
 
-def create_mean_traces (theta_values:list, mean_values:list,
+def create_radar_mean_traces (theta_values:list, mean_values:list,
                                    error_values:str=None, hexcolor:str="#3182bd", 
                                    opacity=0.6, opacity_std=0.3, w=2,
                                    tracename:str="mean", errorname:str="error", 
                                    minimalValue:float=None, legendgroup:str=None,
-                                   showlegend_line:bool=True, showlegend_error:bool=True):
+                                   groupeMeanError:bool=True, showlegend_line:bool=True, 
+                                   showlegend_error:bool=True):
     traces_container = []
     # 1) Trace mean line
     mean_traces = create_radar_line(
@@ -88,7 +89,7 @@ def create_mean_traces (theta_values:list, mean_values:list,
             line_opacity=opacity_std,
             lines_width=w,
             fill_opacity=opacity_std,
-            legendgroup=legendgroup,
+            legendgroup=legendgroup if groupeMeanError else "error-"+legendgroup,
             showlegend=showlegend_error
         )
         error_traces += create_radar_line(
@@ -100,7 +101,7 @@ def create_mean_traces (theta_values:list, mean_values:list,
             line_opacity=opacity_std,
             lines_width=w,
             fill_opacity=opacity_std,
-            legendgroup=legendgroup,
+            legendgroup=legendgroup if groupeMeanError else "error-"+legendgroup,
             showlegend=showlegend_error,
         )
     return [*error_traces, *mean_traces]
@@ -121,7 +122,7 @@ def create_multi_threshold_traces (theta_values:list, limit_values:list,
         f"threshold lev.{i}" 
         for i in range(1, len(th_list_values)+1)
         ] if type(th_list_names)==None else th_list_names
-
+    th_traces_sets = []
     for i in range(len(th_list_values)):
         th_values = th_list_values[i]
         if i == 0:
@@ -136,7 +137,7 @@ def create_multi_threshold_traces (theta_values:list, limit_values:list,
             if not False in mask_fill:
                 th_values, fill_values = None, None 
         if type(fill_values)!=type(None):
-            traces_container += create_radar_line(
+            th_traces_sets.append(create_radar_line(
                 theta_values=theta_values,
                 line_values=th_values, 
                 hexcolor=hexcolor_list[i], 
@@ -147,5 +148,7 @@ def create_multi_threshold_traces (theta_values:list, limit_values:list,
                 fill_opacity=fill_opacity,
                 legendgroup=legendgroup, 
                 showlegend=showlegend
-            )
+            ))
+    for traces in th_traces_sets[::-1]:
+        traces_container += traces
     return traces_container

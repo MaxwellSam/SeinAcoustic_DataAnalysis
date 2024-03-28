@@ -1,5 +1,5 @@
 import numpy as np
-from Visu.radar_plot.create_traces import create_mean_traces, create_multi_threshold_traces
+from Visu.radarVisu.utils import create_radar_mean_traces, create_multi_threshold_traces
 
 def get_traces_RadarWithSTDThresholds (theta_values:np.ndarray, mean_values:np.ndarray, 
                                   std_values:np.ndarray, varname:str="descriptor", 
@@ -9,7 +9,7 @@ def get_traces_RadarWithSTDThresholds (theta_values:np.ndarray, mean_values:np.n
     ths_upper = [mean_values+(std_values*i) for i in std_th]
     ths_lower = [mean_values-(std_values*i) for i in std_th]
     # 1) Trace mean and std areas
-    mean_traces = create_mean_traces(
+    mean_traces = create_radar_mean_traces(
         theta_values=theta_values,
         mean_values=mean_values,
         error_values=std_values,
